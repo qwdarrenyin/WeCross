@@ -45,26 +45,12 @@ dependencies {
     compile ('org.springframework.boot:spring-boot-starter-actuator:2.1.4.RELEASE')
     {
         exclude module: 'slf4j-log4j12'
-        exclude module: 'log4j'
         exclude module: "spring-boot-starter-logging"
-        exclude module: "logback-classic"
-        exclude module: "ch.qos.logback"
-        exclude module: "log4j-api"
-        exclude module: "log4j-core"
-        exclude module: "log4j-jul"
-        exclude module: "log4j-slf4j-impl"
     }
     compile ('org.springframework.boot:spring-boot-starter-web:2.1.4.RELEASE')
     {
         exclude module: 'slf4j-log4j12'
-        exclude module: 'log4j'
         exclude module: "spring-boot-starter-logging"
-        exclude module: "logback-classic"
-        exclude module: "ch.qos.logback"
-        exclude module: "log4j-api"
-        exclude module: "log4j-core"
-        exclude module: "log4j-jul"
-        exclude module: "log4j-slf4j-impl"
     }
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor:2.1.4.RELEASE'
 
@@ -76,26 +62,12 @@ dependencies {
     compile ('com.jd.blockchain:sdk-pack:1.1.0.RELEASE')
     {
         exclude module: 'slf4j-log4j12'
-        exclude module: 'log4j'
         exclude module: "spring-boot-starter-logging"
-        exclude module: "logback-classic"
-        exclude module: "ch.qos.logback"
-        exclude module: "log4j-api"
-        exclude module: "log4j-core"
-        exclude module: "log4j-jul"
-        exclude module: "log4j-slf4j-impl"
 	}
     compile ('com.jd.blockchain:crypto-pki:1.1.0.RELEASE')
     {
         exclude module: 'slf4j-log4j12'
-        exclude module: 'log4j'
         exclude module: "spring-boot-starter-logging"
-        exclude module: "logback-classic"
-        exclude module: "ch.qos.logback"
-        exclude module: "log4j-api"
-        exclude module: "log4j-core"
-        exclude module: "log4j-jul"
-        exclude module: "log4j-slf4j-impl"
 	}
 }
 
