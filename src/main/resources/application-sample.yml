@@ -1,4 +1,4 @@
-# log level: ALL < TRACE < DEBUG < INFO < WARN < ERROR < FATAL < OFF
+# Spring Boot log level: ALL < TRACE < DEBUG < INFO < WARN < ERROR < FATAL < OFF
 logging.level.org.springframework.boot.autoconfigure: INFO
 
 # manager WeCross resources
@@ -31,7 +31,7 @@ network-manager:
                 bcos2:
                     type: BCOS
                     accounts:
-                        accountFile: /bcosconf/bcos2/0x98333491efac02f8ce109b0c499074d47e7779a6.p12
+                        accountFile: /bcosconf/bcos2/0x4c16922e30890eec4a3dfe9305cbdef9bdd57341.p12
                         password: '123456'
                     channelService:
                         groupId: 1 # The specified group to which the SDK connects
@@ -54,6 +54,7 @@ network-manager:
                 jd:
                     type: JDCHAIN
                     jdService:
+<<<<<<< HEAD
                         - privateKey: '0000000000000000'
                           publicKey: '111111111111111'
                           password: '222222222222222'
@@ -62,6 +63,16 @@ network-manager:
                           publicKey: '111111111111111'
                           password: '222222222222222'
                           connectionsStr: '127.0.0.1:18081'
+=======
+                        -   privateKey: '0000000000000000'
+                            publicKey: '111111111111111'
+                            password: '222222222222222'
+                            connectionsStr: '127.0.0.1:18081'
+                        -   privateKey: '0000000000000000'
+                            publicKey: '111111111111111'
+                            password: '222222222222222'
+                            connectionsStr: '127.0.0.1:18081'
+>>>>>>> 324184c0154b044a9b0fed82a82349c96e303f07
                     resources:
                         HelloWorldContract:
                             # jdchain resource types include: JD_CONTRACT, AMOP
