@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.jd.blockchain.contract.Contract;
 import com.jd.blockchain.contract.ContractEvent;
 import com.jd.blockchain.ledger.BlockchainKeypair;
+import com.jd.blockchain.ledger.KVDataEntry;
 import com.jd.blockchain.ledger.OperationResult;
 import com.jd.blockchain.ledger.PreparedTransaction;
 import com.jd.blockchain.ledger.TransactionTemplate;
@@ -53,9 +54,58 @@ public class JDChainContractResource extends JDChainResource {
         return "JD_CONTRACT";
     }
 
+    @SuppressWarnings("null")
     @Override
     public GetDataResponse getData(GetDataRequest request) {
-        return null;
+        GetDataResponse response = new GetDataResponse();
+        String[] splitKey = request.getKey().split("\\|");
+        if (splitKey.length != 2) {
+            logger.error("input {} is invalidate should have two elements split by |", request.getKey());
+            throw new IllegalStateException(
+                    String.format("input {} is invalidate should have two elements split by |", request.getKey()));
+        }
+        String address = splitKey[0];
+        String account = splitKey[1];
+        logger.debug(
+                "get data request key:{} address:{} account:{}",
+                request.getKey(),
+                address,
+                account);
+        int channelCount = blockchainService.size();
+        if (channelCount == 0) {
+            logger.error("input {} blockk chain service count is zero", request.getKey());
+            throw new IllegalStateException(
+                    String.format(
+                            "\"input {} blockk chain service count is zero", request.getKey()));
+        }
+        SecureRandom secureRandom = new SecureRandom();
+        Integer randNum = secureRandom.nextInt(channelCount);
+        for (int index = 0; index < channelCount; ++index) {
+            Integer useIndex = (randNum + index) % channelCount;
+            BlockchainService service = blockchainService.get(useIndex);
+            KVDataEntry[] kvDataEntries = null;
+            try {
+                kvDataEntries = service.getDataEntries(ledgerHash, address, account);
+            } catch (Exception e) {
+                continue;
+            }
+            if (kvDataEntries == null || kvDataEntries.length == 0) {
+                throw new IllegalStateException(
+                        String.format("Ledger %s Service inner Error !!!", ledgerHash.toBase58()));
+            }
+            KVDataEntry kvDataEntry = kvDataEntries[0];
+            if (kvDataEntry.getVersion() == -1) {
+                response.setErrorCode(0);
+                response.setErrorMessage("");
+                response.setValue("");
+                return response;
+            }
+            
+            response.setErrorCode(0);
+            response.setErrorMessage("");
+            response.setValue(String.valueOf(kvDataEntry.getValue()));
+        }
+        return response;
     }
 
     @Override
