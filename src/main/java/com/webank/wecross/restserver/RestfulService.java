@@ -2,6 +2,8 @@ package com.webank.wecross.restserver;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.webank.wecross.exception.Status;
+import com.webank.wecross.exception.WeCrossException;
 import com.webank.wecross.host.WeCrossHost;
 import com.webank.wecross.network.NetworkManager;
 import com.webank.wecross.resource.Path;
@@ -55,22 +57,20 @@ public class RestfulService {
                             restRequestString,
                             new TypeReference<RestRequest<ResourceRequest>>() {});
 
-            String version = restRequest.getVersion();
-            if (!Versions.checkVersion(version)) {
-                logger.warn("Unsupported version: {}", version);
-                restResponse.setResult(Status.VERSION_ERROR);
-                restResponse.setMessage("Unsupported version :" + version);
-                return restResponse;
-            }
+            restRequest.checkRestRequest("", "list");
 
             ResourceRequest resourceRequest = restRequest.getData();
             NetworkManager networkManager = host.getNetworkManager();
             ResourceResponse resourceResponse = networkManager.list(resourceRequest);
             restResponse.setData(resourceResponse);
+        } catch (WeCrossException e) {
+            logger.warn("Process request error: {}", e.getMessage());
+            restResponse.setResult(e.getErrorCode());
+            restResponse.setMessage(e.getMessage());
         } catch (Exception e) {
-            logger.warn("Process request error:", e);
+            logger.warn("Process request error: {}", e.getMessage());
             restResponse.setResult(Status.INTERNAL_ERROR);
-            restResponse.setMessage(e.getLocalizedMessage());
+            restResponse.setMessage(e.getMessage());
         }
         return restResponse;
     }
@@ -136,44 +136,32 @@ public class RestfulService {
         logger.debug("request string: {}", restRequestString);
 
         try {
-            RestRequest request =
-                    objectMapper.readValue(restRequestString, new TypeReference<RestRequest>() {});
-
-            String version = request.getVersion();
-            if (!Versions.checkVersion(version)) {
-                logger.warn("Unsupported version: {}", version);
-                restResponse.setResult(Status.VERSION_ERROR);
-                restResponse.setMessage("Unsupported version :" + version);
-                return restResponse;
-            }
-        } catch (Exception e) {
-            logger.warn("Process request error:", e);
-
-            restResponse.setResult(Status.INTERNAL_ERROR);
-            restResponse.setMessage(e.getLocalizedMessage());
-            return restResponse;
-        }
-
-        try {
             Resource resourceObj = host.getResource(path);
             if (resourceObj == null) {
-                logger.warn("Unable to find resource: {}.{}.{}", network, stub, resource);
-
-                throw new Exception("Resource not found");
+                logger.warn("Unable to find resource: {}", path.toString());
             }
 
             switch (method) {
                 case "exists":
                     {
-                        restResponse.setData("exists!");
+                        if (resourceObj == null) {
+                            restResponse.setData("not exists");
+                        } else {
+                            restResponse.setData("exists");
+                        }
                         break;
                     }
                 case "getData":
                     {
+                        if (resourceObj == null) {
+                            throw new WeCrossException(Status.RESOURCE_ERROR, "Resource not found");
+                        }
                         RestRequest<GetDataRequest> restRequest =
                                 objectMapper.readValue(
                                         restRequestString,
                                         new TypeReference<RestRequest<GetDataRequest>>() {});
+
+                        restRequest.checkRestRequest(path.toString(), method);
 
                         GetDataRequest getDataRequest = restRequest.getData();
                         GetDataResponse getDataResponse = resourceObj.getData(getDataRequest);
@@ -183,10 +171,15 @@ public class RestfulService {
                     }
                 case "setData":
                     {
+                        if (resourceObj == null) {
+                            throw new WeCrossException(Status.RESOURCE_ERROR, "Resource not found");
+                        }
                         RestRequest<SetDataRequest> restRequest =
                                 objectMapper.readValue(
                                         restRequestString,
                                         new TypeReference<RestRequest<SetDataRequest>>() {});
+
+                        restRequest.checkRestRequest(path.toString(), method);
 
                         SetDataRequest setDataRequest = (SetDataRequest) restRequest.getData();
                         SetDataResponse setDataResponse =
@@ -197,10 +190,15 @@ public class RestfulService {
                     }
                 case "call":
                     {
+                        if (resourceObj == null) {
+                            throw new WeCrossException(Status.RESOURCE_ERROR, "Resource not found");
+                        }
                         RestRequest<TransactionRequest> restRequest =
                                 objectMapper.readValue(
                                         restRequestString,
                                         new TypeReference<RestRequest<TransactionRequest>>() {});
+
+                        restRequest.checkRestRequest(path.toString(), method);
 
                         TransactionRequest transactionRequest =
                                 (TransactionRequest) restRequest.getData();
@@ -212,10 +210,15 @@ public class RestfulService {
                     }
                 case "sendTransaction":
                     {
+                        if (resourceObj == null) {
+                            throw new WeCrossException(Status.RESOURCE_ERROR, "Resource not found");
+                        }
                         RestRequest<TransactionRequest> restRequest =
                                 objectMapper.readValue(
                                         restRequestString,
                                         new TypeReference<RestRequest<TransactionRequest>>() {});
+
+                        restRequest.checkRestRequest(path.toString(), method);
 
                         TransactionRequest transactionRequest =
                                 (TransactionRequest) restRequest.getData();
@@ -234,9 +237,12 @@ public class RestfulService {
                         break;
                     }
             }
+        } catch (WeCrossException e) {
+            logger.warn("Process request error: {}", e.getMessage());
+            restResponse.setResult(e.getErrorCode());
+            restResponse.setMessage(e.getMessage());
         } catch (Exception e) {
             logger.warn("Process request error:", e);
-
             restResponse.setResult(Status.INTERNAL_ERROR);
             restResponse.setMessage(e.getLocalizedMessage());
         }

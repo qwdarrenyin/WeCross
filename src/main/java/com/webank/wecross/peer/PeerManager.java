@@ -18,7 +18,7 @@ public class PeerManager {
 
     private P2PMessageEngine p2pEngine;
 
-    private Map<String, Peer> peers; // url -> peer
+    private Map<Peer, PeerInfo> peerInfos; // peer
 
     private int seq = 1; // Seq of the host
 
@@ -30,7 +30,25 @@ public class PeerManager {
 
     public void start() {
         newSeq();
-        syncWithPeerNetworks();
+
+        final long timeInterval = 5000;
+        Runnable runnable =
+                new Runnable() {
+                    public void run() {
+                        while (true) {
+                            try {
+                                workLoop();
+                                Thread.sleep(timeInterval);
+                            } catch (Exception e) {
+                                logger.error("Startup error: " + e);
+                                System.exit(-1);
+                            }
+                        }
+                    }
+                };
+
+        Thread thread = new Thread(runnable);
+        thread.start();
     }
 
     public void newSeq() {
@@ -42,42 +60,42 @@ public class PeerManager {
     }
 
     public int peerSize() {
-        return peers.size();
+        return peerInfos.size();
     }
 
-    public synchronized Peer getPeer(String url) {
-        if (peers.containsKey(url)) {
-            return peers.get(url);
+    public synchronized PeerInfo getPeerInfo(Peer peer) {
+        if (peerInfos.containsKey(peer)) {
+            return peerInfos.get(peer);
         } else {
             return null;
         }
     }
 
-    public synchronized void updatePeer(Peer peer) {
-        peers.put(peer.getUrl(), peer);
+    public synchronized void updatePeerInfo(PeerInfo peerInfo) {
+        peerInfos.put(peerInfo.getPeer(), peerInfo);
     }
 
-    public synchronized void removePeer(String url) {
-        peers.remove(url);
+    public synchronized void removePeerInfo(Peer peer) {
+        peerInfos.remove(peer);
     }
 
-    public synchronized void clearPeers() {
-        peers.clear();
+    public synchronized void clearPeerInfos() {
+        peerInfos.clear();
     }
 
-    public synchronized void notePeerActive(String url) {
-        Peer peer = getPeer(url);
-        if (peer == null) {
-            updatePeer(new Peer(url, ""));
+    public synchronized void notePeerActive(Peer peer) {
+        PeerInfo peerInfo = getPeerInfo(peer);
+        if (peerInfo == null) {
+            updatePeerInfo(new PeerInfo(peer));
         }
-        getPeer(url).noteAlive();
+        getPeerInfo(peer).noteAlive();
     }
 
-    public synchronized boolean hasPeerChanged(String url, int currentSeq) {
-        if (!peers.containsKey(url)) {
+    public synchronized boolean hasPeerChanged(Peer peer, int currentSeq) {
+        if (!peerInfos.containsKey(peer)) {
             return true;
         }
-        return peers.get(url).getSeq() != currentSeq;
+        return peerInfos.get(peer).getSeq() != currentSeq;
     }
 
     public Object onRestfulPeerMessage(String method, P2PMessage msg) {
@@ -97,8 +115,8 @@ public class PeerManager {
     }
 
     public void broadcastSeqRequest() {
-        for (Peer peer : peers.values()) {
-            sendSeqRequest(peer);
+        for (PeerInfo peerInfo : peerInfos.values()) {
+            sendSeqRequest(peerInfo.getPeer());
         }
     }
 
@@ -118,8 +136,8 @@ public class PeerManager {
     }
 
     public void broadcastPeerInfoRequest() {
-        for (Peer peer : peers.values()) {
-            sendPeerInfoRequest(peer);
+        for (PeerInfo peerInfo : peerInfos.values()) {
+            sendPeerInfoRequest(peerInfo.getPeer());
         }
     }
 
@@ -157,12 +175,12 @@ public class PeerManager {
 
     public void handleSeq(Peer peer, P2PMessage msg) {
         logger.info("Receive peer seq from peer:{}", peer);
-        notePeerActive(peer.getUrl());
+        notePeerActive(peer);
 
         PeerSeqMessageData data = (PeerSeqMessageData) msg.getData();
         if (data != null && msg.getMethod().equals("seq")) {
             int currentSeq = data.getSeq();
-            if (hasPeerChanged(peer.getUrl(), currentSeq)) {
+            if (hasPeerChanged(peer, currentSeq)) {
 
                 sendPeerInfoRequest(peer, msg.getSeq() + 1);
             }
@@ -183,12 +201,12 @@ public class PeerManager {
 
     public void handlePeerInfo(Peer peer, P2PMessage msg) {
         logger.info("Receive peer info from {}", peer);
-        notePeerActive(peer.getUrl());
+        notePeerActive(peer);
 
         PeerInfoMessageData data = (PeerInfoMessageData) msg.getData();
         if (data != null && msg.getMethod().equals("peerInfo")) {
             int currentSeq = data.getSeq();
-            if (hasPeerChanged(peer.getUrl(), currentSeq)) {
+            if (hasPeerChanged(peer, currentSeq)) {
                 // compare and update
                 Set<String> currentResources = data.getResources();
                 logger.info(
@@ -197,10 +215,11 @@ public class PeerManager {
                         currentSeq,
                         currentResources);
 
-                Peer peerRecord = getPeer(peer.getUrl());
+                PeerInfo peerRecord = getPeerInfo(peer);
                 if (peerRecord == null) {
-                    peer.setResources(currentSeq, currentResources);
-                    updatePeer(peer);
+                    peerRecord = new PeerInfo(peer);
+                    peerRecord.setResources(currentSeq, currentResources);
+                    updatePeerInfo(peerRecord);
                 } else {
                     peerRecord.setResources(currentSeq, currentResources);
                 }
@@ -216,9 +235,9 @@ public class PeerManager {
 
     public Set<String> getAllPeerResource() {
         Set<String> ret = new HashSet<>();
-        for (Peer peer : peers.values()) {
-            if (peer.getResources() != null) {
-                for (String resource : peer.getResources()) {
+        for (PeerInfo peerInfo : peerInfos.values()) {
+            if (peerInfo.getResources() != null) {
+                for (String resource : peerInfo.getResources()) {
                     ret.add(resource);
                 }
             }
@@ -230,15 +249,15 @@ public class PeerManager {
         this.p2pEngine = p2pEngine;
     }
 
-    public void setPeers(Map<String, Peer> peers) {
-        this.peers = peers;
+    public void setPeerInfos(Map<Peer, PeerInfo> peerInfos) {
+        this.peerInfos = peerInfos;
     }
 
-    public synchronized Set<Peer> getActivePeers() {
-        Set<Peer> ret = new HashSet<>();
-        for (Peer peer : peers.values()) {
-            if (!peer.isTimeout(peerActiveTimeout)) {
-                ret.add(peer);
+    public synchronized Set<PeerInfo> getActivePeerInfos() {
+        Set<PeerInfo> ret = new HashSet<>();
+        for (PeerInfo peerInfo : peerInfos.values()) {
+            if (!peerInfo.isTimeout(peerActiveTimeout)) {
+                ret.add(peerInfo);
             }
         }
         return ret;
@@ -269,9 +288,19 @@ public class PeerManager {
         }
     }
 
+    public void setNetworkManager(NetworkManager networkManager) {
+        this.networkManager = networkManager;
+    }
+
+    public Set<Peer> getConnectedPeers() {
+        // Update me if netty ready
+        Set<Peer> peers = new HashSet<>(peerInfos.keySet());
+        return peers;
+    }
+
     public void syncWithPeerNetworks() {
         // Update peers' resource into networks
-        Set<Peer> activePeers = this.getActivePeers();
+        Set<PeerInfo> activePeers = this.getActivePeerInfos();
         networkManager.updateActivePeerNetwork(activePeers);
 
         // Log all active resources
@@ -284,7 +313,37 @@ public class PeerManager {
         this.setActiveResources(activeLocalResources);
     }
 
-    public void setNetworkManager(NetworkManager networkManager) {
-        this.networkManager = networkManager;
+    public void maintainPeerConnections() {
+        Set<Peer> connectedPeers = getConnectedPeers();
+
+        Set<Peer> peers2Add = new HashSet<>(connectedPeers);
+        peers2Add.removeAll(peerInfos.keySet());
+
+        Set<Peer> peers2Remove = new HashSet<>(peerInfos.keySet());
+        peers2Remove.removeAll(connectedPeers);
+
+        if (peers2Add != null) {
+            for (Peer peer : peers2Add) {
+                updatePeerInfo(new PeerInfo(peer));
+            }
+        }
+
+        if (peers2Remove != null) {
+            for (Peer peer : peers2Remove) {
+                removePeerInfo(peer);
+            }
+        }
+
+        logger.info("Current connected peers: {}", peerInfos.keySet());
+    }
+
+    private void workLoop() {
+        try {
+            maintainPeerConnections();
+            syncWithPeerNetworks();
+            broadcastSeqRequest();
+        } catch (Exception e) {
+            logger.warn("workloop exception:" + e);
+        }
     }
 }
