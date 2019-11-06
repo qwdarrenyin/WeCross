@@ -9,6 +9,7 @@ import com.jd.blockchain.ledger.OperationResult;
 import com.jd.blockchain.ledger.PreparedTransaction;
 import com.jd.blockchain.ledger.TransactionTemplate;
 import com.jd.blockchain.sdk.BlockchainService;
+import com.webank.wecross.exception.Status;
 import com.webank.wecross.resource.EventCallback;
 import com.webank.wecross.restserver.request.GetDataRequest;
 import com.webank.wecross.restserver.request.SetDataRequest;
@@ -61,8 +62,9 @@ public class JDChainContractResource extends JDChainResource {
         String[] splitKey = request.getKey().split("\\|");
         if (splitKey.length != 2) {
             logger.error("input {} is invalidate should have two elements split by |", request.getKey());
-            throw new IllegalStateException(
-                    String.format("input {} is invalidate should have two elements split by |", request.getKey()));
+            response.setErrorCode(Status.JDCHAIN_PARAMETER_INVALIDATE);
+            response.setErrorMessage("input: "+request.getKey()+" is invalidate should have two elements split by |");
+            return response;
         }
         String address = splitKey[0];
         String account = splitKey[1];
@@ -73,10 +75,10 @@ public class JDChainContractResource extends JDChainResource {
                 account);
         int channelCount = blockchainService.size();
         if (channelCount == 0) {
-            logger.error("input {} blockk chain service count is zero", request.getKey());
-            throw new IllegalStateException(
-                    String.format(
-                            "\"input {} blockk chain service count is zero", request.getKey()));
+            logger.error("input {} block chain service count is zero", request.getKey());
+            response.setErrorCode(Status.JDCHAIN_CONNECTION_COUNRT_ERROR);
+            response.setErrorMessage("has no gate way to connect");
+            return response;
         }
         SecureRandom secureRandom = new SecureRandom();
         Integer randNum = secureRandom.nextInt(channelCount);
@@ -90,8 +92,9 @@ public class JDChainContractResource extends JDChainResource {
                 continue;
             }
             if (kvDataEntries == null || kvDataEntries.length == 0) {
-                throw new IllegalStateException(
-                        String.format("Ledger %s Service inner Error !!!", ledgerHash.toBase58()));
+                response.setErrorCode(Status.JDCHAIN_GETDATA_ERROR);
+                response.setErrorMessage("get data failed address:"+address+" account:"+account);
+                return response;
             }
             KVDataEntry kvDataEntry = kvDataEntries[0];
             if (kvDataEntry.getVersion() == -1) {
@@ -182,7 +185,7 @@ public class JDChainContractResource extends JDChainResource {
 
     @SuppressWarnings("unchecked")
     @Override
-    public TransactionResponse call(TransactionRequest request) {
+    public TransactionResponse sendTransaction(TransactionRequest request) {
 
         logger.debug(
                 "request parameter:{} now connection to gateway size:{}",
@@ -191,7 +194,7 @@ public class JDChainContractResource extends JDChainResource {
         JDChainResponse response = new JDChainResponse();
         int channelCount = blockchainService.size();
         if (channelCount == 0) {
-            response.setErrorCode(-1);
+            response.setErrorCode(Status.JDCHAIN_CONNECTION_COUNRT_ERROR);
             response.setErrorMessage("has no gate way to connect");
             return response;
         }
@@ -202,7 +205,7 @@ public class JDChainContractResource extends JDChainResource {
 
             CtClass ctClass = dynamicGenerateClass(request);
             if (ctClass == null) {
-                response.setErrorCode(-2);
+                response.setErrorCode(Status.JDCHAIN_GENERATE_CLASS_ERROR);
                 response.setErrorMessage("generate class failed");
                 return response;
             }
@@ -229,18 +232,18 @@ public class JDChainContractResource extends JDChainResource {
                             method.invoke(contractObject, request.getArgs());
 
                         } catch (IllegalAccessException e) {
-                            response.setErrorCode(-3);
+                            response.setErrorCode(Status.JDCHAIN_INVOKE_METHOD_ERROR);
                             logger.error("invoke method failed:{}", request.getMethod());
                             response.setErrorMessage("invoke method failed");
                             return response;
 
                         } catch (IllegalArgumentException e) {
-                            response.setErrorCode(-3);
+                            response.setErrorCode(Status.JDCHAIN_INVOKE_METHOD_ERROR);
                             logger.error("invoke method failed:{}", request.getMethod());
                             response.setErrorMessage("invoke method failed");
                             return response;
                         } catch (InvocationTargetException e) {
-                            response.setErrorCode(-3);
+                            response.setErrorCode(Status.JDCHAIN_INVOKE_METHOD_ERROR);
                             logger.error("invoke method failed:{}", request.getMethod());
                             response.setErrorMessage("invoke method failed");
                             return response;
@@ -283,7 +286,7 @@ public class JDChainContractResource extends JDChainResource {
 
                             return response;
                         } else {
-                            response.setErrorCode(-4);
+                            response.setErrorCode(Status.JDCHAIN_COMMIT_ERROR);
                             logger.error("invoke method failed:{}", request.getMethod());
                             response.setErrorMessage("invoke method failed");
                             return response;
@@ -291,7 +294,7 @@ public class JDChainContractResource extends JDChainResource {
                     }
                 }
             } catch (CannotCompileException e) {
-                response.setErrorCode(-5);
+                response.setErrorCode(Status.JDCHAIN_GENERATE_COMPILE_ERROR);
                 response.setErrorMessage("can not cpmpile");
                 return response;
             }
@@ -300,8 +303,11 @@ public class JDChainContractResource extends JDChainResource {
     }
 
     @Override
-    public TransactionResponse sendTransaction(TransactionRequest request) {
-        return call(request);
+    public TransactionResponse call(TransactionRequest request) {
+        JDChainResponse response = new JDChainResponse();
+        response.setErrorCode(Status.JDCHAIN_METHOD_NOTSUPPORT);
+        response.setErrorMessage("jdchain not support call method");
+        return response;
     }
 
     @Override
